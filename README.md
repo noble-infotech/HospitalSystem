@@ -39,6 +39,16 @@ Open http://127.0.0.1:8000. The demo logins are `admin`, `reception`, `nurse`, `
 
 Run the tests with `python manage.py test clinic`.
 
+## Demo / staging on Render
+
+The repo includes a `render.yaml` Blueprint (web service + PostgreSQL, Singapore region).
+
+1. Push this repo to GitHub, then in Render: **New → Blueprint** and pick the repo.
+2. Render asks for `DJANGO_SUPERUSER_PASSWORD`. That becomes the password for the `owner` admin login.
+3. Wait for the build (`build.sh`: install, collectstatic, migrate, create owner). Open `https://<service>.onrender.com`.
+
+Free-plan notes: the web service sleeps after 15 minutes idle (first load takes ~1 minute), and the free database expires after 30 days. **Use Render for demos with dummy data only.** Render has no India region, so real patient data belongs on the India-hosted server below.
+
 ## Going live
 
 **Server:** a small Linux VM in an Indian region (AWS Mumbai, Azure Central India or GCP Mumbai) with 1–2 GB RAM is plenty for one clinic. Use managed PostgreSQL if the budget allows.
