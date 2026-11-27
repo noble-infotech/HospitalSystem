@@ -1,0 +1,38 @@
+{% extends "clinic/base.html" %}
+{% block title %}Access log{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Access log</h1>
+    <div class="muted">Every login, and every time someone viewed or changed a patient record. This log can't be edited.</div>
+  </div>
+</div>
+<div class="card">
+  <form method="get" class="actions" style="margin-bottom:.75rem">
+    <input type="search" name="patient" value="{{ patient_q }}" placeholder="Filter by patient ID, e.g. P000012" style="max-width:300px">
+    <button class="btn" type="submit">Filter</button>
+  </form>
+  <table>
+    <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Patient</th><th>Details</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for l in page %}
+      <tr>
+        <td class="small">{{ l.timestamp|date:"d M Y, g:i:s A" }}</td>
+        <td>{{ l.user|default:"–" }}</td>
+        <td>{{ l.get_action_display }}</td>
+        <td>{% if l.patient %}<a href="{% url 'patient_detail' l.patient.pk %}">{{ l.patient.patient_code }}</a>{% else %}–{% endif %}</td>
+        <td class="small">{{ l.description }}</td>
+        <td class="muted small">{{ l.ip_address|default:"" }}</td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">Nothing logged yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if page.has_other_pages %}
+  <div class="pager">
+    {% if page.has_previous %}<a class="btn sm" href="?patient={{ patient_q|urlencode }}&page={{ page.previous_page_number }}">← Newer</a>{% endif %}
+    <span class="muted small">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn sm" href="?patient={{ patient_q|urlencode }}&page={{ page.next_page_number }}">Older →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
