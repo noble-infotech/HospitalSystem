@@ -1,0 +1,34 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+# Note: Render has no India region; Singapore is the closest. For go-live under
+# DPDP, move to an India-region server (see README "Going live").
+databases:
+  - name: clinic-db
+    plan: free
+    region: singapore
+    databaseName: clinic
+    user: clinic
+
+services:
+  - type: web
+    name: clinic-ms
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: ./build.sh
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2
+    healthCheckPath: /login/
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clinic-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: CLINIC_NAME
+        value: City Care Clinic
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: owner
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false   # Render asks for this when you create the Blueprint
