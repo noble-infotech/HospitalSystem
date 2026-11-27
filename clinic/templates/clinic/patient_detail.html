@@ -1,4 +1,5 @@
 {% extends "clinic/base.html" %}
+{% load clinic_extras %}
 {% block title %}{{ patient.full_name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -8,12 +9,18 @@
   </div>
   <div class="actions">
     <a class="btn" href="{% url 'patient_edit' patient.pk %}">Edit details</a>
+    <a class="btn" href="{% url 'invoice_create' %}?patient={{ patient.pk }}">+ New bill</a>
     <a class="btn" href="{% url 'appointment_walk_in' %}?patient={{ patient.pk }}">+ Walk-in</a>
     <a class="btn primary" href="{% url 'appointment_book' %}?patient={{ patient.pk }}">+ Book appointment</a>
   </div>
 </div>
 
-{% if patient.allergies %}<div class="allergy" style="margin-bottom:1rem">Allergies: {{ patient.allergies }}</div>{% endif %}
+{% if patient.medical_alerts or patient.allergies %}
+<div class="allergy" style="margin-bottom:1rem">
+  {% if patient.allergies %}<div>Allergies: {{ patient.allergies }}</div>{% endif %}
+  {% if patient.medical_alerts %}<div>Medical alert: {{ patient.medical_alerts|join:" · " }}</div>{% endif %}
+</div>
+{% endif %}
 
 <div class="grid grid-2">
   <div class="card">
@@ -24,13 +31,68 @@
       {% if patient.address %}<dt>Address</dt><dd>{{ patient.address }}</dd>{% endif %}
       {% if patient.emergency_contact_name %}<dt>Emergency</dt><dd>{{ patient.emergency_contact_name }} {{ patient.emergency_contact_phone }}</dd>{% endif %}
       {% if patient.abha_number %}<dt>ABHA</dt><dd>{{ patient.abha_number }}</dd>{% endif %}
+      {% if patient.referred_by %}<dt>Referred by</dt><dd>{{ patient.referred_by }}</dd>{% endif %}
       <dt>Registered</dt><dd>{{ patient.created_at|date:"d M Y" }}</dd>
     </dl>
   </div>
   <div class="card">
-    <h2>Medical history</h2>
-    <p style="white-space:pre-line;margin:0">{{ patient.medical_history|default:"Nothing recorded." }}</p>
+    <h2>Medical &amp; dental history</h2>
+    <dl class="facts">
+      <dt>Conditions</dt><dd>{{ patient.medical_alerts|join:", "|default:"None ticked" }}</dd>
+      {% if patient.current_medications %}<dt>Medicines</dt><dd>{{ patient.current_medications }}</dd>{% endif %}
+      {% if patient.medical_history %}<dt>Other</dt><dd>{{ patient.medical_history }}</dd>{% endif %}
+      {% if patient.tobacco_use %}<dt>Tobacco</dt><dd>{{ patient.get_tobacco_use_display }}</dd>{% endif %}
+      <dt>Past dental</dt><dd>{{ patient.dental_history|default:"Nothing recorded." }}</dd>
+    </dl>
   </div>
+</div>
+
+{% if show_clinical %}
+<div>
+  <div class="card">
+    <h2>Dental chart <span class="muted small" style="font-weight:400">· as of last visit</span></h2>
+    {% include "clinic/_odontogram.html" with editable=False %}
+  </div>
+  <div class="card">
+    <h2>Treatment plan</h2>
+    <table class="compact">
+      <thead><tr><th>Tooth</th><th>Procedure</th><th class="num">Fee</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for t in treatments %}
+        <tr>
+          <td>{{ t.teeth|default:"–" }}</td>
+          <td>{{ t.procedure.name }}{% if t.notes %}<div class="muted small">{{ t.notes }}</div>{% endif %}</td>
+          <td class="num">{{ t.price|inr }}</td>
+          <td><span class="badge t-{{ t.status }}">{{ t.get_status_display }}</span>{% if t.completed_on %}<div class="muted small">{{ t.completed_on|date:"d M Y" }}</div>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="4" class="empty">No procedures yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="actions" style="justify-content:space-between;margin-bottom:.5rem">
+    <h2 style="margin:0">Bills</h2>
+    <span>{% if balance_due > 0 %}<span class="badge unpaid">Due {{ balance_due|inr }}</span>{% endif %}
+      {% if unbilled %}<a class="btn sm primary" href="{% url 'invoice_create' %}?patient={{ patient.pk }}">Bill {{ unbilled|length }} unbilled procedure{{ unbilled|length|pluralize }}</a>{% endif %}</span>
+  </div>
+  <table>
+    <thead><tr><th>Bill no.</th><th>Date</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Due</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for i in invoices %}
+      <tr>
+        <td><a href="{% url 'invoice_detail' i.pk %}">{{ i.number }}</a></td>
+        <td>{{ i.date|date:"d M Y" }}</td>
+        <td class="num">{{ i.total|inr }}</td>
+        <td class="num">{{ i.paid|inr }}</td>
+        <td class="num">{% if i.balance > 0 %}{{ i.balance|inr }}{% else %}–{% endif %}</td>
+        <td><span class="badge {{ i.status }}">{{ i.status_label }}</span></td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">No bills yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
 </div>
 
 <div class="card">
@@ -54,7 +116,7 @@
 
 {% if show_clinical %}
 <div class="card">
-  <h2>Consultation history</h2>
+  <h2>Visit history</h2>
   {% for c in consultations %}
     <div style="padding:.75rem 0;border-bottom:1px solid var(--line)">
       <div class="actions" style="justify-content:space-between">

@@ -27,7 +27,7 @@ services:
       - key: DJANGO_DEBUG
         value: "false"
       - key: CLINIC_NAME
-        value: City Care Clinic
+        value: Smile Care Dental Clinic
       - key: DJANGO_SUPERUSER_USERNAME
         value: owner
       - key: DJANGO_SUPERUSER_PASSWORD

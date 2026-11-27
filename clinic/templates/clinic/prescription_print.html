@@ -21,7 +21,9 @@
   <header>
     <div>
       <h1>{{ CLINIC_NAME }}</h1>
-      <div><strong>{{ appt.doctor }}</strong>, {{ appt.doctor.specialization }}</div>
+      {% if CLINIC_ADDRESS %}<div class="muted small">{{ CLINIC_ADDRESS }}{% if CLINIC_PHONE %} · Ph: {{ CLINIC_PHONE }}{% endif %}</div>{% endif %}
+      <div style="margin-top:.35rem"><strong>{{ appt.doctor }}</strong>{% if appt.doctor.qualification %}, {{ appt.doctor.qualification }}{% endif %}</div>
+      <div class="small">{{ appt.doctor.specialization }}</div>
       {% if appt.doctor.registration_number %}<div class="muted small">Reg. no. {{ appt.doctor.registration_number }}</div>{% endif %}
     </div>
     <div style="text-align:right">
@@ -33,18 +35,21 @@
   <dl class="facts">
     <dt>Patient</dt><dd><strong>{{ appt.patient.full_name }}</strong> ({{ appt.patient.patient_code }})</dd>
     <dt>Age / Sex</dt><dd>{{ appt.patient.age|default:"–" }} / {{ appt.patient.get_gender_display }}</dd>
-    {% if record.bp_systolic or record.pulse or record.temperature or record.weight_kg %}
-    <dt>Vitals</dt><dd>{% if record.bp_systolic %}BP {{ record.bp_systolic }}/{{ record.bp_diastolic }} · {% endif %}{% if record.pulse %}Pulse {{ record.pulse }} · {% endif %}{% if record.temperature %}Temp {{ record.temperature }}°F · {% endif %}{% if record.weight_kg %}Wt {{ record.weight_kg }} kg{% endif %}</dd>
+    {% if record.bp_systolic or record.pulse or record.blood_sugar %}
+    <dt>Vitals</dt><dd>{% if record.bp_systolic %}BP {{ record.bp_systolic }}/{{ record.bp_diastolic }}{% endif %}{% if record.pulse %} · Pulse {{ record.pulse }}{% endif %}{% if record.blood_sugar %} · RBS {{ record.blood_sugar }} mg/dL{% endif %}</dd>
     {% endif %}
     {% if appt.patient.allergies %}<dt>Allergies</dt><dd><strong>{{ appt.patient.allergies }}</strong></dd>{% endif %}
+    {% if record.complaints %}<dt>Complaint</dt><dd>{{ record.complaints }}</dd>{% endif %}
     {% if record.diagnosis %}<dt>Diagnosis</dt><dd>{{ record.diagnosis }}</dd>{% endif %}
+    {% if done %}<dt>Treatment done</dt><dd>{% for t in done %}{{ t.description }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
   </dl>
 
   <div class="sym">℞</div>
   <ol>{% for line in record.prescription_lines %}<li>{{ line }}</li>{% empty %}<li class="muted">No medicines prescribed.</li>{% endfor %}</ol>
 
   {% if record.advice %}<h3>Advice</h3><p style="white-space:pre-line">{{ record.advice }}</p>{% endif %}
-  {% if record.follow_up_date %}<p><strong>Follow-up:</strong> {{ record.follow_up_date|date:"l, d M Y" }}</p>{% endif %}
+  {% if planned %}<h3>Next in your treatment plan</h3><ul>{% for t in planned %}<li>{{ t.description }}</li>{% endfor %}</ul>{% endif %}
+  {% if record.follow_up_date %}<p><strong>Next appointment:</strong> {{ record.follow_up_date|date:"l, d M Y" }}</p>{% endif %}
 
   <div class="sign">
     <div style="height:2.5rem"></div>

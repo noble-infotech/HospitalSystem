@@ -1,0 +1,51 @@
+{# Dental chart (FDI numbering). Expects: chart (from dental_chart_layout), editable (bool), conditions (when editable) #}
+<div class="odonto{% if editable %} editable{% endif %}">
+  <div class="jaw-label">Upper <span class="muted small">· patient's right ← → patient's left</span></div>
+  {% for row in chart.permanent %}
+    <div class="jaw-row">
+      <div class="quad">{% for t in row.right %}{% include "clinic/_tooth.html" %}{% endfor %}</div>
+      <div class="quad">{% for t in row.left %}{% include "clinic/_tooth.html" %}{% endfor %}</div>
+    </div>
+    {% if forloop.first %}<div class="occlusal"></div>{% endif %}
+  {% endfor %}
+  <div class="jaw-label">Lower</div>
+  <details class="milk"{% if chart.has_primary %} open{% endif %}>
+    <summary>Milk teeth (children)</summary>
+    {% for row in chart.primary %}
+      <div class="jaw-row">
+        <div class="quad">{% for t in row.right %}{% include "clinic/_tooth.html" %}{% endfor %}</div>
+        <div class="quad">{% for t in row.left %}{% include "clinic/_tooth.html" %}{% endfor %}</div>
+      </div>
+      {% if forloop.first %}<div class="occlusal"></div>{% endif %}
+    {% endfor %}
+  </details>
+  <div class="legend small">
+    <span><i class="sw problem"></i> Needs treatment</span>
+    <span><i class="sw treated"></i> Treated</span>
+    <span><i class="sw missing"></i> Missing</span>
+  </div>
+
+  {% if editable %}
+    <div class="tooth-panel" id="tooth-panel" hidden>
+      <div class="actions" style="justify-content:space-between">
+        <strong>Tooth <span id="tp-no"></span></strong>
+        <span class="actions">
+          <button type="button" class="btn sm" id="tp-plan" title="Put this tooth number in the 'Add procedure' row">Use for procedure ↓</button>
+          <button type="button" class="btn sm" id="tp-clear">Clear tooth</button>
+          <button type="button" class="btn sm primary" id="tp-close">Done</button>
+        </span>
+      </div>
+      <div class="tp-conds">
+        {% for code, label, abbr, kind in conditions %}
+          <label class="cond {{ kind }}"><input type="checkbox" value="{{ code }}" data-abbr="{{ abbr }}" data-kind="{{ kind }}" data-label="{{ label }}"> {{ label }} <span class="muted small">({{ abbr }})</span></label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="muted small" style="margin-top:.5rem">Click a tooth to mark its condition.</div>
+  {% endif %}
+
+  <ul class="chart-summary" id="chart-summary">
+    {% for t in chart.summary %}<li><strong>{{ t.code }}</strong> {% for c in t.conditions %}{{ c.label }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+    {% empty %}{% if not editable %}<li class="empty">No findings charted.</li>{% endif %}{% endfor %}
+  </ul>
+</div>

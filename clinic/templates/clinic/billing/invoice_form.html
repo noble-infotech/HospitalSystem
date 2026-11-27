@@ -1,0 +1,134 @@
+{% extends "clinic/base.html" %}
+{% load clinic_extras %}
+{% block title %}New bill · {{ patient.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>New bill</h1>
+    <div class="muted"><a href="{% url 'patient_detail' patient.pk %}">{{ patient.full_name }}</a> · {{ patient.patient_code }} · {{ patient.phone }}
+      {% if appointment %} · visit on {{ appointment.date|date:"d M Y" }} with {{ appointment.doctor }}{% endif %}</div>
+  </div>
+</div>
+
+<form method="post" class="card" style="max-width:960px" id="bill-form">{% csrf_token %}
+  <input type="hidden" name="patient" value="{{ patient.pk }}">
+  {% if appointment %}<input type="hidden" name="appointment" value="{{ appointment.pk }}">{% endif %}
+  {% if form.non_field_errors %}<ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+
+  <fieldset>
+    <legend>What to bill</legend>
+    <table class="compact bill-lines">
+      <thead><tr><th style="width:2rem"></th><th>Item</th><th class="num">Qty</th><th class="num" style="width:9rem">Fee</th></tr></thead>
+      <tbody>
+      {% if appointment and consult_fee > 0 %}
+        <tr>
+          <td><input type="checkbox" name="consult_fee" value="1" data-amount="{{ consult_fee }}" class="bill-check" {% if consult_checked %}checked{% endif %}></td>
+          <td>Consultation — {{ appointment.doctor }}</td><td class="num">1</td><td class="num">{{ consult_fee|inr }}</td>
+        </tr>
+      {% endif %}
+      {% for t in unbilled %}
+        <tr>
+          <td><input type="checkbox" name="treatments" value="{{ t.pk }}" data-amount="{{ t.price }}" class="bill-check" {% if t.pk in chosen_ids %}checked{% endif %}></td>
+          <td>{{ t.description }} <span class="muted small">· done {{ t.completed_on|date:"d M" }}{% if t.notes %} · {{ t.notes }}{% endif %}</span></td>
+          <td class="num">1</td><td class="num">{{ t.price|inr }}</td>
+        </tr>
+      {% endfor %}
+      {% if not unbilled and not consult_fee %}
+        <tr><td></td><td colspan="3" class="muted small">No completed procedures waiting to be billed. Add items below.</td></tr>
+      {% endif %}
+      </tbody>
+    </table>
+  </fieldset>
+
+  <fieldset>
+    <legend>Other items <span class="muted small" style="font-weight:400">· X-rays, medicines, lab work, anything else</span></legend>
+    {{ lines.management_form }}
+    {% for f in lines %}
+      <div class="add-treatment line-row">
+        <div class="field grow">{{ f.procedure }}</div>
+        <div class="field grow">{{ f.description.as_widget }}{% for e in f.description.errors %}<div class="error">{{ e }}</div>{% endfor %}</div>
+        <div class="field" style="width:4.5rem">{{ f.quantity }}</div>
+        <div class="field" style="width:8rem">{{ f.unit_price }}{% for e in f.unit_price.errors %}<div class="error">{{ e }}</div>{% endfor %}</div>
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  <div class="grid grid-2">
+    <fieldset>
+      <legend>Total</legend>
+      <div class="form-grid">
+        {% include "clinic/_field.html" with field=form.discount %}
+        {% include "clinic/_field.html" with field=form.notes %}
+      </div>
+      <dl class="totals">
+        <dt>Subtotal</dt><dd id="t-sub">₹0</dd>
+        <dt>Discount</dt><dd id="t-disc">₹0</dd>
+        <dt class="grand">Total</dt><dd class="grand" id="t-total">₹0</dd>
+      </dl>
+    </fieldset>
+    <fieldset class="pay-box">
+      <legend>Payment received now <span class="muted small" style="font-weight:400">· leave empty if paying later</span></legend>
+      <div class="form-grid">
+        {% include "clinic/_field.html" with field=pay_form.amount %}
+        {% include "clinic/_field.html" with field=pay_form.mode %}
+        {% include "clinic/_field.html" with field=pay_form.reference cls="full" %}
+      </div>
+      <button type="button" class="btn sm" id="pay-full" style="margin-top:.5rem">Paid in full</button>
+    </fieldset>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn primary" type="submit">Create bill</button>
+    <a class="btn" href="{% url 'patient_detail' patient.pk %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const fmt = n => "₹" + n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const form = document.getElementById("bill-form");
+  const discount = document.getElementById("id_discount");
+  const payAmount = document.getElementById("id_pay-amount");
+  let total = 0;
+
+  function recalc() {
+    let sub = 0;
+    form.querySelectorAll(".bill-check:checked").forEach(c => { sub += parseFloat(c.dataset.amount) || 0; });
+    form.querySelectorAll(".line-row").forEach(row => {
+      const desc = row.querySelector("[name$=description]").value.trim();
+      const proc = row.querySelector("select").value;
+      const qty = parseInt(row.querySelector("[name$=quantity]").value) || 1;
+      const fee = parseFloat(row.querySelector("[name$=unit_price]").value) || 0;
+      if (desc || proc) sub += qty * fee;
+    });
+    const disc = parseFloat(discount.value) || 0;
+    total = Math.max(sub - disc, 0);
+    document.getElementById("t-sub").textContent = fmt(sub);
+    document.getElementById("t-disc").textContent = disc ? "−" + fmt(disc) : "₹0";
+    document.getElementById("t-total").textContent = fmt(total);
+  }
+
+  form.querySelectorAll(".line-row").forEach(row => {
+    const sel = row.querySelector("select");
+    const desc = row.querySelector("[name$=description]");
+    const fee = row.querySelector("[name$=unit_price]");
+    desc.placeholder = "…or type a description";
+    fee.placeholder = "Fee";
+    sel.addEventListener("change", () => {
+      const opt = sel.selectedOptions[0];
+      if (opt && opt.dataset.price) {
+        fee.value = opt.dataset.price;
+        if (!desc.value || desc.dataset.auto === "1") { desc.value = opt.dataset.name; desc.dataset.auto = "1"; }
+      }
+      recalc();
+    });
+  });
+  form.addEventListener("input", recalc);
+  form.addEventListener("change", recalc);
+  document.getElementById("pay-full").addEventListener("click", () => { payAmount.value = total.toFixed(2); });
+  recalc();
+})();
+</script>
+{% endblock %}
