@@ -1,0 +1,23 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · {{ CLINIC_NAME }}</title>
+  <link rel="stylesheet" href="{% static 'clinic/app.css' %}">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="card login-card">
+    <h1>{{ CLINIC_NAME }}</h1>
+    <p class="muted">Staff login</p>
+    {% if form.non_field_errors %}<ul class="messages"><li class="error">Wrong username or password.</li></ul>{% endif %}
+    <form method="post">{% csrf_token %}
+      {% for field in form %}{% include "clinic/_field.html" %}<div style="height:.75rem"></div>{% endfor %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn primary" type="submit" style="width:100%;justify-content:center">Log in</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>
