@@ -1,0 +1,55 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Prescription · {{ appt.patient.full_name }}</title>
+  <link rel="stylesheet" href="{% static 'clinic/app.css' %}">
+  <style>
+    body { background: #fff; }
+    .rx { max-width: 760px; margin: 2rem auto; padding: 0 1.5rem; }
+    .rx header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--brand); padding-bottom: .75rem; margin-bottom: 1rem; }
+    .rx h1 { color: var(--brand); }
+    .rx .sym { font-size: 1.6rem; font-weight: 700; color: var(--brand); margin: 1rem 0 .25rem; }
+    .rx ol { padding-left: 1.25rem; } .rx ol li { padding: .3rem 0; }
+    .rx .sign { margin-top: 3rem; text-align: right; }
+    @media print { .rx { margin: 0 auto; } }
+  </style>
+</head>
+<body>
+<div class="rx">
+  <div class="no-print" style="text-align:right;margin-bottom:1rem"><button class="btn primary" onclick="window.print()">Print</button></div>
+  <header>
+    <div>
+      <h1>{{ CLINIC_NAME }}</h1>
+      <div><strong>{{ appt.doctor }}</strong>, {{ appt.doctor.specialization }}</div>
+      {% if appt.doctor.registration_number %}<div class="muted small">Reg. no. {{ appt.doctor.registration_number }}</div>{% endif %}
+    </div>
+    <div style="text-align:right">
+      <div>{{ appt.date|date:"d M Y" }}</div>
+      <div class="muted small">Token #{{ appt.token }}</div>
+    </div>
+  </header>
+
+  <dl class="facts">
+    <dt>Patient</dt><dd><strong>{{ appt.patient.full_name }}</strong> ({{ appt.patient.patient_code }})</dd>
+    <dt>Age / Sex</dt><dd>{{ appt.patient.age|default:"–" }} / {{ appt.patient.get_gender_display }}</dd>
+    {% if record.bp_systolic or record.pulse or record.temperature or record.weight_kg %}
+    <dt>Vitals</dt><dd>{% if record.bp_systolic %}BP {{ record.bp_systolic }}/{{ record.bp_diastolic }} · {% endif %}{% if record.pulse %}Pulse {{ record.pulse }} · {% endif %}{% if record.temperature %}Temp {{ record.temperature }}°F · {% endif %}{% if record.weight_kg %}Wt {{ record.weight_kg }} kg{% endif %}</dd>
+    {% endif %}
+    {% if appt.patient.allergies %}<dt>Allergies</dt><dd><strong>{{ appt.patient.allergies }}</strong></dd>{% endif %}
+    {% if record.diagnosis %}<dt>Diagnosis</dt><dd>{{ record.diagnosis }}</dd>{% endif %}
+  </dl>
+
+  <div class="sym">℞</div>
+  <ol>{% for line in record.prescription_lines %}<li>{{ line }}</li>{% empty %}<li class="muted">No medicines prescribed.</li>{% endfor %}</ol>
+
+  {% if record.advice %}<h3>Advice</h3><p style="white-space:pre-line">{{ record.advice }}</p>{% endif %}
+  {% if record.follow_up_date %}<p><strong>Follow-up:</strong> {{ record.follow_up_date|date:"l, d M Y" }}</p>{% endif %}
+
+  <div class="sign">
+    <div style="height:2.5rem"></div>
+    <div>{{ appt.doctor }}</div>
+  </div>
+</div>
+</body>
+</html>

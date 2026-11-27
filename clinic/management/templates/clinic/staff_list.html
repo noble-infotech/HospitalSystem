@@ -1,0 +1,28 @@
+{% extends "clinic/base.html" %}
+{% block title %}Doctors &amp; staff{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Doctors &amp; staff</h1>
+    <div class="muted">Everyone who logs in. Doctors also get working hours and leave days.</div>
+  </div>
+  <a class="btn primary" href="{% url 'staff_create' %}">+ Add staff member</a>
+</div>
+<div class="card">
+  <table>
+    <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Details</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for s in staff %}
+      <tr>
+        <td><strong>{{ s }}</strong>{% if s.phone %}<div class="muted small">{{ s.phone }}</div>{% endif %}</td>
+        <td class="muted">{{ s.username }}</td>
+        <td>{{ s.get_role_display }}</td>
+        <td class="small">{% if s.role == "doctor" and s.doctor_profile %}{{ s.doctor_profile.specialization }} · ₹{{ s.doctor_profile.consultation_fee|floatformat:0 }} · {{ s.doctor_profile.slot_minutes }}-min slots{% else %}–{% endif %}</td>
+        <td>{% if s.is_active %}<span class="badge completed">Active</span>{% else %}<span class="badge cancelled">Disabled</span>{% endif %}</td>
+        <td class="num"><a class="btn sm" href="{% url 'staff_edit' s.pk %}">Edit</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

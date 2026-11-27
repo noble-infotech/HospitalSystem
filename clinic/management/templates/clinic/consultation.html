@@ -1,0 +1,69 @@
+{% extends "clinic/base.html" %}
+{% block title %}Consultation · {{ appt.patient.full_name }}{% endblock %}
+{% block content %}
+{% with p=appt.patient %}
+<div class="page-head">
+  <div>
+    <h1>{{ p.full_name }} <span class="token">#{{ appt.token }}</span></h1>
+    <div class="muted">{{ p.patient_code }} · {{ p.age|default:"?" }} yrs · {{ p.get_gender_display }} · {{ appt.doctor }} · {{ appt.date|date:"d M Y" }}</div>
+    {% if appt.reason %}<div style="margin-top:.25rem">Reason: {{ appt.reason }}</div>{% endif %}
+  </div>
+  <div class="actions">
+    <span class="badge {{ appt.status }}">{{ appt.get_status_display }}</span>
+    <a class="btn" href="{% url 'patient_detail' p.pk %}">Full record</a>
+    {% if record.pk %}<a class="btn" href="{% url 'prescription_print' appt.pk %}" target="_blank">Print prescription</a>{% endif %}
+  </div>
+</div>
+
+{% if p.allergies %}<div class="allergy" style="margin-bottom:1rem">Allergies: {{ p.allergies }}</div>{% endif %}
+
+<div class="grid" style="grid-template-columns: minmax(0,2fr) minmax(0,1fr)">
+  <form method="post" class="card">{% csrf_token %}
+    <fieldset>
+      <legend>Vitals</legend>
+      <div class="grid grid-3">
+        {% include "clinic/_field.html" with field=form.bp_systolic %}
+        {% include "clinic/_field.html" with field=form.bp_diastolic %}
+        {% include "clinic/_field.html" with field=form.pulse %}
+        {% include "clinic/_field.html" with field=form.temperature %}
+        {% include "clinic/_field.html" with field=form.weight_kg %}
+        {% include "clinic/_field.html" with field=form.spo2 %}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Consultation</legend>
+      <div class="grid">
+        {% include "clinic/_field.html" with field=form.complaints %}
+        {% include "clinic/_field.html" with field=form.diagnosis %}
+        {% include "clinic/_field.html" with field=form.prescription %}
+        {% include "clinic/_field.html" with field=form.advice %}
+        <div style="max-width:240px">{% include "clinic/_field.html" with field=form.follow_up_date %}</div>
+      </div>
+    </fieldset>
+    <div class="form-actions">
+      <button class="btn" type="submit">Save notes</button>
+      {% if user.is_doctor and appt.status == "in_consultation" %}
+        <button class="btn primary" type="submit" name="finish" value="1">Save &amp; finish consultation</button>
+      {% endif %}
+    </div>
+  </form>
+
+  <div>
+    <div class="card">
+      <h2>Background</h2>
+      <p style="white-space:pre-line;margin:0">{{ p.medical_history|default:"No history recorded." }}</p>
+    </div>
+    <div class="card">
+      <h2>Previous visits</h2>
+      {% for c in past %}
+        <div style="padding:.5rem 0;border-bottom:1px solid var(--line)">
+          <strong>{{ c.appointment.date|date:"d M Y" }}</strong> <span class="muted small">{{ c.appointment.doctor }}</span>
+          {% if c.diagnosis %}<div>{{ c.diagnosis }}</div>{% endif %}
+          {% if c.prescription %}<div class="muted small" style="white-space:pre-line">{{ c.prescription|truncatechars:200 }}</div>{% endif %}
+        </div>
+      {% empty %}<p class="empty">First visit.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% endblock %}

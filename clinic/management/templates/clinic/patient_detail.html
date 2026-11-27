@@ -1,0 +1,70 @@
+{% extends "clinic/base.html" %}
+{% block title %}{{ patient.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ patient.full_name }}</h1>
+    <div class="muted">{{ patient.patient_code }} · {{ patient.age|default:"age unknown" }}{% if patient.age %} yrs{% endif %} · {{ patient.get_gender_display }}{% if patient.blood_group %} · {{ patient.blood_group }}{% endif %}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{% url 'patient_edit' patient.pk %}">Edit details</a>
+    <a class="btn" href="{% url 'appointment_walk_in' %}?patient={{ patient.pk }}">+ Walk-in</a>
+    <a class="btn primary" href="{% url 'appointment_book' %}?patient={{ patient.pk }}">+ Book appointment</a>
+  </div>
+</div>
+
+{% if patient.allergies %}<div class="allergy" style="margin-bottom:1rem">Allergies: {{ patient.allergies }}</div>{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Contact</h2>
+    <dl class="facts">
+      <dt>Phone</dt><dd>{{ patient.phone }}</dd>
+      {% if patient.email %}<dt>Email</dt><dd>{{ patient.email }}</dd>{% endif %}
+      {% if patient.address %}<dt>Address</dt><dd>{{ patient.address }}</dd>{% endif %}
+      {% if patient.emergency_contact_name %}<dt>Emergency</dt><dd>{{ patient.emergency_contact_name }} {{ patient.emergency_contact_phone }}</dd>{% endif %}
+      {% if patient.abha_number %}<dt>ABHA</dt><dd>{{ patient.abha_number }}</dd>{% endif %}
+      <dt>Registered</dt><dd>{{ patient.created_at|date:"d M Y" }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h2>Medical history</h2>
+    <p style="white-space:pre-line;margin:0">{{ patient.medical_history|default:"Nothing recorded." }}</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Appointments</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for a in appointments %}
+      <tr>
+        <td>{{ a.date|date:"d M Y" }}</td>
+        <td>{% if a.time %}{{ a.time|time:"g:i A" }}{% else %}<span class="muted">Walk-in</span>{% endif %}</td>
+        <td>{{ a.doctor }}</td>
+        <td>{{ a.reason|default:"–" }}</td>
+        <td><span class="badge {{ a.status }}">{{ a.get_status_display }}</span></td>
+        <td class="num">{% include "clinic/_status_buttons.html" with next=request.path %}</td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">No appointments yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if show_clinical %}
+<div class="card">
+  <h2>Consultation history</h2>
+  {% for c in consultations %}
+    <div style="padding:.75rem 0;border-bottom:1px solid var(--line)">
+      <div class="actions" style="justify-content:space-between">
+        <strong>{{ c.appointment.date|date:"d M Y" }} · {{ c.appointment.doctor }}</strong>
+        <a class="btn sm" href="{% url 'consultation' c.appointment.pk %}">Open</a>
+      </div>
+      {% if c.diagnosis %}<div><span class="muted">Diagnosis:</span> {{ c.diagnosis }}</div>{% endif %}
+      {% if c.complaints %}<div class="muted small">{{ c.complaints|truncatechars:160 }}</div>{% endif %}
+    </div>
+  {% empty %}<p class="empty">No consultations recorded yet.</p>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "clinic/base.html" %}
+{% block title %}{% if staff_user %}Edit {{ staff_user }}{% else %}Add staff{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% if staff_user %}Edit {{ staff_user }}{% else %}Add staff member{% endif %}</h1>
+  <a class="btn" href="{% url 'staff_list' %}">Back</a>
+</div>
+
+<form method="post" class="card">{% csrf_token %}
+  <fieldset>
+    <legend>Login &amp; role</legend>
+    <div class="form-grid">
+      {% for field in form %}{% include "clinic/_field.html" %}{% endfor %}
+    </div>
+  </fieldset>
+
+  <div id="doctor-section">
+    <fieldset>
+      <legend>Doctor details</legend>
+      <div class="form-grid">{% for field in doctor_form %}{% include "clinic/_field.html" %}{% endfor %}</div>
+    </fieldset>
+    <fieldset>
+      <legend>Weekly working hours</legend>
+      <p class="muted small" style="margin-top:-.4rem">Add one row per working block. Split shifts (e.g. 9–1 and 5–8) are two rows for the same day. Patients can only be booked inside these hours.</p>
+      {{ formset.management_form }}
+      {% if formset.non_form_errors %}<ul class="errorlist">{% for e in formset.non_form_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <table>
+        <thead><tr><th>Day</th><th>From</th><th>To</th><th>Remove</th></tr></thead>
+        <tbody>
+        {% for f in formset %}
+          <tr>
+            <td>{{ f.id }}{{ f.weekday }}{% for e in f.weekday.errors %}<div class="error small">{{ e }}</div>{% endfor %}</td>
+            <td>{{ f.start_time }}{% for e in f.start_time.errors %}<div class="error small">{{ e }}</div>{% endfor %}</td>
+            <td>{{ f.end_time }}{% for e in f.end_time.errors %}<div class="error small">{{ e }}</div>{% endfor %}
+              {% for e in f.non_field_errors %}<div class="error small">{{ e }}</div>{% endfor %}</td>
+            <td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="muted small">Need more rows? Save, and two new empty rows appear.</p>
+    </fieldset>
+  </div>
+
+  <div class="form-actions"><button class="btn primary" type="submit">Save</button></div>
+</form>
+
+{% if doctor %}
+<div class="card" id="leave">
+  <h2>Leave days</h2>
+  <p class="muted small" style="margin-top:-.4rem">No appointments can be booked for {{ doctor }} on these dates.</p>
+  <ul style="padding-left:1rem">
+    {% for l in leaves %}
+      <li>{{ l.date|date:"D, d M Y" }}{% if l.reason %} — {{ l.reason }}{% endif %}
+        <form class="inline" method="post" action="{% url 'doctor_leave_delete' l.pk %}">{% csrf_token %}<button class="btn sm danger" type="submit">Remove</button></form></li>
+    {% empty %}<li class="empty">No upcoming leave.</li>{% endfor %}
+  </ul>
+  <form method="post" action="{% url 'doctor_leave_add' doctor.pk %}" class="actions">{% csrf_token %}
+    <div style="width:180px">{{ leave_form.date }}</div>
+    <div style="width:280px">{{ leave_form.reason }}</div>
+    <button class="btn" type="submit">Add leave day</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const role = document.getElementById("id_u-role");
+  const section = document.getElementById("doctor-section");
+  function toggle() { section.hidden = role.value !== "doctor"; }
+  role.addEventListener("change", toggle); toggle();
+</script>
+{% endblock %}
