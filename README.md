@@ -1,6 +1,6 @@
-# Clinic Management System
+# Dental Clinic Management System
 
-A web app for a small clinic with 2–3 doctors and front-desk staff. It handles staff logins and roles, doctors' working hours and leave, patient registration and records, appointment booking, walk-ins with token numbers, the live waiting queue, consultation notes and printable prescriptions.
+A web app for a small dental clinic with 2–3 dentists and front-desk staff. It handles staff logins and roles, dentists' working hours and leave, patient registration with a dental medical-history checklist, appointment booking, walk-ins with token numbers, the live waiting queue, dental visit notes with a tooth chart, treatment plans, printable prescriptions, and billing with receipts and a daily collection report.
 
 It runs in any browser on the reception PC, the doctor's laptop or a tablet. There's nothing to install on those machines.
 
@@ -10,18 +10,29 @@ It runs in any browser on the reception PC, the doctor's laptop or a tablet. The
 |---|:-:|:-:|:-:|:-:|
 | Register and edit patients | ✓ | ✓ | ✓ | ✓ |
 | Book appointments, add walk-ins, check in, cancel | ✓ | ✓ | ✓ | ✓ |
-| See consultation notes and prescriptions | ✓ | ✓ | ✓ | – |
+| See visit notes, tooth chart, treatment plan, prescriptions | ✓ | ✓ | ✓ | – |
 | Call in a patient, write notes, finish a visit | ✓ | own patients only | vitals and notes | – |
+| Plan procedures / mark them done | ✓ | plan and mark done | plan only | – |
+| Create bills, take payments, print receipts | ✓ | ✓ | ✓ | ✓ |
+| See the daily collection report and dues | ✓ | – | – | ✓ |
+| Void a payment, cancel a bill, edit the price list | ✓ | – | – | – |
 | Add or disable staff, set doctor hours and leave | ✓ | – | – | – |
 | View the access log | ✓ | – | – | – |
 
 ## How a day works
 
-1. **Reception** searches for the patient by name, phone or ID. A new patient gets registered with their consent ticked, and gets an ID like `P000123`.
+1. **Reception** searches for the patient by name, phone or ID. A new patient gets registered with their consent ticked, the medical-history checklist filled in (diabetes, blood thinners, pregnancy and so on), and gets an ID like `P000123`.
 2. **Booking:** pick the doctor and date, and the system shows only free slots inside that doctor's working hours. Leave days, past times and booked slots never appear. Each doctor gets token numbers in order (#1, #2…) every day.
 3. **Walk-ins** go straight into today's waiting queue with the next token.
 4. When a booked patient arrives, reception clicks **Check in**, and the patient moves to *Waiting*.
-5. The **doctor** sees only their own queue, clicks **Call in**, records vitals, complaints, diagnosis and prescription, then clicks **Save & finish**. The prescription prints on the clinic letterhead.
+5. The **dentist** sees only their own queue and clicks **Call in**. The visit screen shows any medical alerts in red at the top. The dentist records BP, pulse and sugar, the chief complaint and findings, marks teeth on the **dental chart** (FDI numbering, milk teeth too), and adds procedures from the price list to the **treatment plan**. Procedures done today are marked **Done**, and the rest stay planned for later visits. **Save & finish** completes the visit. The prescription prints on the clinic letterhead, with the treatment done and what's planned next.
+6. The finished visit appears under **Ready to bill** on the Today screen. Reception clicks **Create bill**: the procedures marked done are already ticked, with the consultation fee. Reception adds anything else (X-rays, medicines), gives a discount if any, and records the payment by cash, UPI, card or bank transfer. Part payments are fine, and the balance shows on the patient's record until it's paid.
+7. **Print receipt** gives a bill-cum-receipt with the amount in words. Bills are numbered by financial year (`2026-27/0001`).
+8. At closing time, **Collections** shows the day's total by payment mode, every payment, and all money still due. It can be downloaded as CSV for the accountant.
+
+Bills and payments are never deleted. A wrong payment is **voided** with a reason, and a wrong bill is **cancelled** with a reason (after voiding its payments). Both are admin-only and recorded in the access log. Cancelling a bill frees its procedures to be billed again.
+
+The **Price list** (admin) starts with 31 common dental procedures at typical fees. Edit them to the clinic's own fees before go-live. Dental treatment is exempt from GST in India, so bills carry no GST. If the clinic offers purely cosmetic work that its accountant says is taxable, that needs adding.
 
 The appointment status can only move in this order: Scheduled → Waiting → With doctor → Completed. A scheduled or waiting appointment can also be Cancelled or marked No-show. The database itself blocks two active bookings in the same doctor's slot, even if two receptionists click at the same moment.
 
@@ -35,7 +46,7 @@ python manage.py seed_demo          # demo doctors, staff and patients
 python manage.py runserver
 ```
 
-Open http://127.0.0.1:8000. The demo logins are `admin`, `reception`, `nurse`, `dr.kumar`, `dr.meena` and `dr.sameer`, all with the password `Clinic@2026`.
+Open http://127.0.0.1:8000. The demo logins are `admin`, `reception`, `nurse`, `dr.kumar` (dental surgeon), `dr.meena` (orthodontist) and `dr.sameer` (endodontist), all with the password `Clinic@2026`. Patient Ravi Shankar has a past visit with a tooth chart, a treatment plan and a part-paid bill.
 
 Run the tests with `python manage.py test clinic`.
 
@@ -58,7 +69,7 @@ Free-plan notes: the web service sleeps after 15 minutes idle (first load takes 
 git clone <your repo> /srv/clinicms && cd /srv/clinicms
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # then fill in every value
+cp .env.example .env   # then fill in every value, including CLINIC_ADDRESS and CLINIC_PHONE for receipts
 set -a; source .env; set +a
 python manage.py migrate
 python manage.py collectstatic --noinput
@@ -92,12 +103,16 @@ The clinic also needs to handle these outside the app:
 ```
 config/            settings, URLs
 clinic/models.py   User (roles), Doctor, DoctorAvailability, DoctorLeave, Patient,
-                   Appointment, Consultation, AuditLog
-clinic/views.py    all screens
+                   Appointment, Consultation (incl. dental chart), Procedure (price list),
+                   TreatmentItem, Invoice, InvoiceItem, Payment, AuditLog
+clinic/views.py    patients, appointments, visits, staff
+clinic/views_billing.py  bills, payments, receipts, collections, price list
 clinic/access.py   role checks and audit logging
 clinic/forms.py    forms and validation
 clinic/templates/  HTML screens        clinic/static/  styles
-clinic/tests.py    25 tests: slots, double booking, tokens, permissions, full visit flow
+clinic/templatetags/clinic_extras.py   ₹ formatting (1,23,456) and amounts in words
+clinic/tests.py    41 tests: slots, double booking, tokens, permissions, visit flow,
+                   dental chart, treatment plan, billing, payments, collections
 scripts/backup.sh  nightly database backup
 ```
 
@@ -105,9 +120,9 @@ The built-in Django admin is at `/django-admin/` (owner only), for fixing data d
 
 ## Suggested next phases
 
-1. **Billing:** consultation fee receipts, cash or UPI, and a daily collection report.
-2. **WhatsApp/SMS reminders:** a reminder the day before each appointment (e.g. via the WhatsApp Business API or MSG91).
-3. **Lab reports:** upload PDFs and images to a patient's record.
+1. **WhatsApp/SMS reminders:** a reminder the day before each appointment (e.g. via the WhatsApp Business API or MSG91), plus payment reminders for dues.
+2. **Treatment estimates:** print the planned procedures with fees as a quotation for the patient.
+3. **X-ray and photo uploads:** IOPA/OPG images and lab reports on the patient's record.
 4. **Medicine list:** autocomplete prescriptions from a saved medicine list.
 5. **Online booking page** for patients, using the same slot rules.
 6. **ABHA / ABDM integration.**

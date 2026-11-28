@@ -40,6 +40,7 @@
       </div>
     {% endif %}
     {% include "clinic/_field.html" with field=form.reason cls="full" %}
+    <datalist id="visit-reasons">{% for r in reasons %}<option value="{{ r }}">{% endfor %}</datalist>
     {% if form.notes %}{% include "clinic/_field.html" with field=form.notes cls="full" %}{% endif %}
   </div>
   <div class="form-actions">

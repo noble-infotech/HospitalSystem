@@ -1,0 +1,79 @@
+{% extends "clinic/base.html" %}
+{% load clinic_extras %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Billing</h1>
+    <div class="muted">Bills and payments. To bill a finished visit, use <strong>Create bill</strong> on the Today screen.</div>
+  </div>
+  <div class="picker" style="width:min(100%, 340px)">
+    <input type="search" id="bill-patient" placeholder="New bill: type patient name, phone or ID…" autocomplete="off">
+    <div id="bill-results" class="picker-results" hidden></div>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" class="actions" style="margin-bottom:.75rem">
+    <input type="search" name="q" value="{{ q }}" placeholder="Patient name, phone, ID or bill no." style="max-width:360px">
+    <select name="show" style="max-width:200px">
+      <option value="">All bills</option>
+      <option value="due" {% if show == "due" %}selected{% endif %}>Only with money due</option>
+    </select>
+    <button class="btn" type="submit">Search</button>
+    {% if q or show %}<a href="{% url 'invoice_list' %}" class="small">Clear</a>{% endif %}
+  </form>
+  <table>
+    <thead><tr><th>Bill no.</th><th>Date</th><th>Patient</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Due</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for i in page %}
+      <tr>
+        <td><a href="{% url 'invoice_detail' i.pk %}"><strong>{{ i.number }}</strong></a></td>
+        <td>{{ i.date|date:"d M Y" }}</td>
+        <td><a href="{% url 'patient_detail' i.patient_id %}">{{ i.patient.full_name }}</a> <span class="muted small">{{ i.patient.patient_code }}</span></td>
+        <td class="num">{{ i.total|inr }}</td>
+        <td class="num">{{ i.paid|inr }}</td>
+        <td class="num">{% if i.balance > 0 %}<strong>{{ i.balance|inr }}</strong>{% else %}–{% endif %}</td>
+        <td><span class="badge {{ i.status }}">{{ i.status_label }}</span></td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="empty">No bills found.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if page.has_other_pages %}
+  <div class="pager">
+    {% if page.has_previous %}<a class="btn sm" href="?q={{ q|urlencode }}&show={{ show }}&page={{ page.previous_page_number }}">← Newer</a>{% endif %}
+    <span class="muted small">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn sm" href="?q={{ q|urlencode }}&show={{ show }}&page={{ page.next_page_number }}">Older →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const box = document.getElementById("bill-patient");
+  const results = document.getElementById("bill-results");
+  let timer;
+  box.addEventListener("input", () => {
+    clearTimeout(timer);
+    const q = box.value.trim();
+    if (q.length < 2) { results.hidden = true; return; }
+    timer = setTimeout(async () => {
+      const r = await fetch("{% url 'patient_search_json' %}?q=" + encodeURIComponent(q));
+      const data = await r.json();
+      results.innerHTML = "";
+      data.results.forEach(p => {
+        const a = document.createElement("a");
+        a.href = "{% url 'invoice_create' %}?patient=" + p.id;
+        a.textContent = p.label;
+        a.className = "picker-link";
+        results.appendChild(a);
+      });
+      if (!data.results.length) results.innerHTML = '<div class="empty" style="padding:.5rem .75rem">No patient found.</div>';
+      results.hidden = false;
+    }, 200);
+  });
+})();
+</script>
+{% endblock %}

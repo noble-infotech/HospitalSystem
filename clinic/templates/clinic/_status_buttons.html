@@ -17,6 +17,12 @@
   {% if s == "completed" and user.can_see_clinical and a.consultation %}
     <a class="btn sm" href="{% url 'prescription_print' a.pk %}">Prescription</a>
   {% endif %}
+  {% if s == "completed" %}
+    {% with inv=a.active_invoice %}
+      {% if inv %}<a class="btn sm" href="{% url 'invoice_detail' inv.pk %}">Bill {{ inv.number }}</a>
+      {% else %}<a class="btn sm primary" href="{% url 'invoice_create' %}?patient={{ a.patient_id }}&appointment={{ a.pk }}">Create bill</a>{% endif %}
+    {% endwith %}
+  {% endif %}
   {% if s == "scheduled" or s == "checked_in" %}
     <form class="inline" method="post" action="{% url 'appointment_status' a.pk %}">{% csrf_token %}
       <input type="hidden" name="next" value="{{ next }}"><input type="hidden" name="status" value="no_show">

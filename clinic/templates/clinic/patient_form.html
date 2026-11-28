@@ -20,14 +20,26 @@
       {% include "clinic/_field.html" with field=form.age_years %}
       {% include "clinic/_field.html" with field=form.email %}
       {% include "clinic/_field.html" with field=form.blood_group %}
-      {% include "clinic/_field.html" with field=form.address cls="full" %}
+      {% include "clinic/_field.html" with field=form.address %}
+      {% include "clinic/_field.html" with field=form.referred_by %}
     </div>
   </fieldset>
   <fieldset>
-    <legend>Medical background</legend>
-    <div class="form-grid">
+    <legend>Medical history <span class="muted small" style="font-weight:400">· important before injections, extractions and surgery</span></legend>
+    <div class="check-grid">
+      {% for field in form %}{% if field.name in alert_fields %}{% include "clinic/_field.html" %}{% endif %}{% endfor %}
+    </div>
+    <div class="form-grid" style="margin-top:1rem">
       {% include "clinic/_field.html" with field=form.allergies %}
+      {% include "clinic/_field.html" with field=form.current_medications %}
       {% include "clinic/_field.html" with field=form.medical_history %}
+      {% include "clinic/_field.html" with field=form.tobacco_use %}
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Dental history</legend>
+    <div class="form-grid">
+      {% include "clinic/_field.html" with field=form.dental_history cls="full" %}
     </div>
   </fieldset>
   <fieldset>

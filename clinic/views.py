@@ -1,11 +1,12 @@
-from datetime import date, timedelta
+import json
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -14,9 +15,13 @@ from django.views.decorators.http import require_POST
 
 from .access import audit, role_required
 from .forms import (
-    AppointmentForm, AvailabilityFormSet, ConsultationForm, DoctorForm, LeaveForm, PatientForm, StaffForm, WalkInForm,
+    VISIT_REASONS, AppointmentForm, AvailabilityFormSet, ConsultationForm, DoctorForm, LeaveForm, PatientForm,
+    StaffForm, TreatmentItemForm, WalkInForm,
 )
-from .models import Appointment, AuditLog, Consultation, Doctor, DoctorLeave, Patient, User
+from .models import (
+    TOOTH_CONDITIONS, Appointment, AuditLog, Consultation, Doctor, DoctorLeave, Invoice, Patient, Payment,
+    TreatmentItem, User, dental_chart_layout,
+)
 
 R = User.Role
 FRONT_DESK = (R.RECEPTIONIST, R.NURSE, R.DOCTOR)  # everyone who works with patients
@@ -55,12 +60,23 @@ def dashboard(request):
             "done": sum(1 for a in doc_appts if a.status == Appointment.Status.COMPLETED),
         })
 
+    # Patients whose visit is finished today but who haven't been billed yet.
+    to_bill = (
+        Appointment.objects.filter(date=today, status=Appointment.Status.COMPLETED)
+        .exclude(invoices__is_cancelled=False).select_related("patient", "doctor__user").order_by("completed_at")
+    )
+    collected = None
+    if request.user.can_see_collections:
+        collected = Payment.objects.filter(is_void=False, received_at__date=today).aggregate(s=Sum("amount"))["s"] or 0
+
     return render(request, "clinic/dashboard.html", {
         "today": today,
         "counts": counts,
         "total": sum(c for s, c in counts.items() if s != Appointment.Status.CANCELLED),
         "queues": queues,
         "new_patients_today": Patient.objects.filter(created_at__date=today).count(),
+        "to_bill": to_bill,
+        "collected": collected,
     })
 
 
@@ -107,7 +123,7 @@ def patient_create(request):
         if next_step == "walkin":
             return redirect(f"/appointments/walk-in/?patient={patient.pk}")
         return redirect("patient_detail", pk=patient.pk)
-    return render(request, "clinic/patient_form.html", {"form": form, "is_new": True})
+    return render(request, "clinic/patient_form.html", {"form": form, "is_new": True, "alert_fields": Patient.ALERT_FIELDS})
 
 
 @role_required(*FRONT_DESK)
@@ -120,7 +136,7 @@ def patient_edit(request, pk):
         audit(request, AuditLog.Action.UPDATE, f"Edited {patient.patient_code}: {changed}", patient)
         messages.success(request, "Patient details saved.")
         return redirect("patient_detail", pk=patient.pk)
-    return render(request, "clinic/patient_form.html", {"form": form, "patient": patient, "is_new": False})
+    return render(request, "clinic/patient_form.html", {"form": form, "patient": patient, "is_new": False, "alert_fields": Patient.ALERT_FIELDS})
 
 
 @role_required(*FRONT_DESK)
@@ -128,16 +144,22 @@ def patient_detail(request, pk):
     patient = get_object_or_404(Patient, pk=pk)
     appointments = patient.appointments.select_related("doctor__user").order_by("-date", "-token")
     show_clinical = request.user.can_see_clinical
-    consultations = []
+    consultations, treatments, chart = [], [], None
     if show_clinical:
         consultations = (
             Consultation.objects.filter(appointment__patient=patient)
             .select_related("appointment__doctor__user").order_by("-appointment__date")
         )
+        treatments = patient.treatments.select_related("procedure", "doctor__user").exclude(status=TreatmentItem.Status.CANCELLED)
+        chart = dental_chart_layout(patient.latest_dental_chart)
+    invoices = patient.invoices.with_paid().order_by("-date", "-seq")
     audit(request, AuditLog.Action.VIEW, f"Viewed {patient.patient_code}", patient)
     return render(request, "clinic/patient_detail.html", {
         "patient": patient, "appointments": appointments,
         "consultations": consultations, "show_clinical": show_clinical,
+        "treatments": treatments, "chart": chart,
+        "invoices": invoices, "balance_due": sum((i.balance for i in invoices), 0),
+        "unbilled": TreatmentItem.unbilled_for(patient),
     })
 
 
@@ -186,7 +208,7 @@ def appointment_book(request):
             return redirect(f"/appointments/?date={appt.date.isoformat()}")
     chosen = form["patient"].value()
     patient = initial_patient or (Patient.objects.filter(pk=chosen).first() if chosen and str(chosen).isdigit() else None)
-    return render(request, "clinic/appointment_form.html", {"form": form, "patient": patient, "mode": "book"})
+    return render(request, "clinic/appointment_form.html", {"form": form, "patient": patient, "mode": "book", "reasons": VISIT_REASONS})
 
 
 @role_required(*FRONT_DESK)
@@ -203,7 +225,7 @@ def appointment_walk_in(request):
         return redirect("dashboard")
     chosen = form["patient"].value()
     patient = initial_patient or (Patient.objects.filter(pk=chosen).first() if chosen and str(chosen).isdigit() else None)
-    return render(request, "clinic/appointment_form.html", {"form": form, "patient": patient, "mode": "walkin"})
+    return render(request, "clinic/appointment_form.html", {"form": form, "patient": patient, "mode": "walkin", "reasons": VISIT_REASONS})
 
 
 @role_required(*FRONT_DESK)
@@ -245,29 +267,90 @@ def appointment_status(request, pk):
 
 # ---------------------------------------------------------------- consultation
 
+def _treatment_action(request, appt):
+    """Mark a planned procedure done or cancel it. Returns an error message or None."""
+    for action in ("treat_done", "treat_cancel"):
+        item_id = request.POST.get(action)
+        if not item_id:
+            continue
+        item = TreatmentItem.objects.filter(pk=item_id, patient=appt.patient).select_related("procedure").first()
+        if item is None:
+            return "That procedure no longer exists."
+        try:
+            if action == "treat_done":
+                if not (request.user.is_doctor or request.user.is_clinic_admin):
+                    return "Only the dentist can mark a procedure as done."
+                item.mark_done(appt)
+                audit(request, AuditLog.Action.UPDATE, f"Procedure done: {item.description}", appt.patient)
+            else:
+                if item.status != TreatmentItem.Status.PLANNED:
+                    return "Only a planned procedure can be cancelled."
+                item.status = TreatmentItem.Status.CANCELLED
+                item.save()
+                audit(request, AuditLog.Action.UPDATE, f"Procedure removed from plan: {item.description}", appt.patient)
+        except ValidationError as e:
+            return " ".join(e.messages)
+    return None
+
+
 @role_required(R.DOCTOR, R.NURSE, clinical=True)
 def consultation(request, pk):
     appt = get_object_or_404(Appointment.objects.select_related("patient", "doctor__user"), pk=pk)
     if request.user.is_doctor and appt.doctor.user_id != request.user.pk:
         raise PermissionDenied
-    record = Consultation.objects.filter(appointment=appt).first() or Consultation(appointment=appt)
+    record = Consultation.objects.filter(appointment=appt).first()
+    if record is None:
+        # Start from the chart recorded at the last visit, so teeth don't have to be re-marked.
+        record = Consultation(appointment=appt, dental_chart=appt.patient.latest_dental_chart)
     form = ConsultationForm(request.POST or None, instance=record)
-    if request.method == "POST" and form.is_valid():
-        record = form.save(commit=False)
-        record.updated_by = request.user
-        record.save()
-        audit(request, AuditLog.Action.UPDATE, f"Saved consultation for token #{appt.token}", appt.patient)
-        if request.POST.get("finish") and appt.can_move_to(Appointment.Status.COMPLETED) and request.user.is_doctor:
-            appt.move_to(Appointment.Status.COMPLETED)
-            messages.success(request, f"Consultation for {appt.patient.full_name} completed.")
-            return redirect("dashboard")
-        messages.success(request, "Consultation notes saved.")
-        return redirect("consultation", pk=appt.pk)
+    treatment_form = TreatmentItemForm(request.POST or None, prefix="t")
+
+    if request.method == "POST":
+        adding = treatment_form.is_filled()
+        if form.is_valid() and (not adding or treatment_form.is_valid()):
+            with transaction.atomic():
+                record = form.save(commit=False)
+                record.updated_by = request.user
+                record.save()
+                audit(request, AuditLog.Action.UPDATE, f"Saved consultation for token #{appt.token}", appt.patient)
+                if adding:
+                    item = treatment_form.save(commit=False)
+                    item.patient, item.planned_at, item.created_by = appt.patient, appt, request.user
+                    item.save()
+                    if treatment_form.cleaned_data.get("done_today") and (request.user.is_doctor or request.user.is_clinic_admin):
+                        item.mark_done(appt)
+                    audit(request, AuditLog.Action.UPDATE,
+                          f"Procedure {item.get_status_display().lower()}: {item.description}", appt.patient)
+                error = _treatment_action(request, appt)
+            if error:
+                messages.error(request, error)
+            elif request.POST.get("finish") and appt.can_move_to(Appointment.Status.COMPLETED) and request.user.is_doctor:
+                appt.move_to(Appointment.Status.COMPLETED)
+                audit(request, AuditLog.Action.STATUS, f"Token #{appt.token} → {appt.get_status_display()}", appt.patient)
+                messages.success(request, f"Visit for {appt.patient.full_name} completed. Reception can now bill it.")
+                return redirect("dashboard")
+            else:
+                messages.success(request, "Saved.")
+            return redirect(f"{request.path}#treatment" if adding or "treat_done" in request.POST or "treat_cancel" in request.POST else request.path)
+
     past = (
         Consultation.objects.filter(appointment__patient=appt.patient).exclude(appointment=appt)
         .select_related("appointment__doctor__user").order_by("-appointment__date")[:5]
     )
-    return render(request, "clinic/consultation.html", {"appt": appt, "form": form, "record": record, "past": past})
+    chart_value = form["dental_chart"].value()
+    if isinstance(chart_value, str):
+        try:
+            chart_value = json.loads(chart_value or "{}")
+        except ValueError:
+            chart_value = {}
+    return render(request, "clinic/consultation.html", {
+        "appt": appt, "form": form, "record": record, "past": past,
+        "treatment_form": treatment_form,
+        "treatments": appt.patient.treatments.select_related("procedure", "doctor__user")
+                         .exclude(status=TreatmentItem.Status.CANCELLED),
+        "chart": dental_chart_layout(chart_value if isinstance(chart_value, dict) else {}),
+        "conditions": TOOTH_CONDITIONS,
+    })
 
 
 @role_required(R.DOCTOR, R.NURSE, clinical=True)
@@ -275,7 +358,11 @@ def prescription_print(request, pk):
     appt = get_object_or_404(Appointment.objects.select_related("patient", "doctor__user"), pk=pk)
     record = get_object_or_404(Consultation, appointment=appt)
     audit(request, AuditLog.Action.VIEW, f"Printed prescription for token #{appt.token}", appt.patient)
-    return render(request, "clinic/prescription_print.html", {"appt": appt, "record": record})
+    return render(request, "clinic/prescription_print.html", {
+        "appt": appt, "record": record,
+        "done": appt.treatments_done.select_related("procedure"),
+        "planned": appt.patient.treatments.filter(status=TreatmentItem.Status.PLANNED).select_related("procedure"),
+    })
 
 
 # ---------------------------------------------------------------- staff management (admin only)

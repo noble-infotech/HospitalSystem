@@ -15,8 +15,13 @@
       <a href="{% url 'dashboard' %}" class="{% if path == '/' %}active{% endif %}">Today</a>
       <a href="{% url 'appointment_list' %}" class="{% if '/appointments/' in path %}active{% endif %}">Appointments</a>
       <a href="{% url 'patient_list' %}" class="{% if '/patients/' in path %}active{% endif %}">Patients</a>
+      <a href="{% url 'invoice_list' %}" class="{% if request.resolver_match.url_name in 'invoice_list invoice_create invoice_detail' %}active{% endif %}">Billing</a>
+      {% if user.can_see_collections %}
+        <a href="{% url 'collection_report' %}" class="{% if '/billing/collections/' in path %}active{% endif %}">Collections</a>
+      {% endif %}
       {% if user.is_clinic_admin %}
         <div class="section">Admin</div>
+        <a href="{% url 'price_list' %}" class="{% if '/billing/prices/' in path %}active{% endif %}">Price list</a>
         <a href="{% url 'staff_list' %}" class="{% if '/staff/' in path %}active{% endif %}">Doctors &amp; staff</a>
         <a href="{% url 'audit_log' %}" class="{% if '/audit/' in path %}active{% endif %}">Access log</a>
       {% endif %}

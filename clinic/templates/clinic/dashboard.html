@@ -1,4 +1,5 @@
 {% extends "clinic/base.html" %}
+{% load clinic_extras %}
 {% block title %}Today{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -13,12 +14,33 @@
   </div>
 </div>
 
-<div class="grid grid-4">
+<div class="grid {% if collected is not None %}grid-5{% else %}grid-4{% endif %}">
   <div class="card stat"><div class="num">{{ total }}</div><div class="label">Patients today</div></div>
   <div class="card stat"><div class="num">{{ counts.checked_in }}</div><div class="label">Waiting now</div></div>
   <div class="card stat"><div class="num">{{ counts.completed }}</div><div class="label">Seen</div></div>
   <div class="card stat"><div class="num">{{ new_patients_today }}</div><div class="label">New registrations</div></div>
+  {% if collected is not None %}
+  <a class="card stat" href="{% url 'collection_report' %}" style="color:inherit"><div class="num">{{ collected|inr }}</div><div class="label">Collected today</div></a>
+  {% endif %}
 </div>
+
+{% if to_bill %}
+<div class="card">
+  <h2>Ready to bill ({{ to_bill|length }})</h2>
+  <table class="compact">
+    <tbody>
+    {% for a in to_bill %}
+      <tr>
+        <td><span class="token">#{{ a.token }}</span> <a href="{% url 'patient_detail' a.patient.pk %}">{{ a.patient.full_name }}</a></td>
+        <td class="muted">{{ a.doctor }}</td>
+        <td class="muted small">Finished {{ a.completed_at|time:"g:i A" }}</td>
+        <td class="num"><a class="btn sm primary" href="{% url 'invoice_create' %}?patient={{ a.patient.pk }}&appointment={{ a.pk }}">Create bill</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 <div class="grid {% if queues|length > 1 %}grid-{% if queues|length > 2 %}3{% else %}2{% endif %}{% endif %}">
 {% for q in queues %}

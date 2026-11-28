@@ -1,5 +1,6 @@
 {% extends "clinic/base.html" %}
-{% block title %}Consultation · {{ appt.patient.full_name }}{% endblock %}
+{% load clinic_extras %}
+{% block title %}Dental visit · {{ appt.patient.full_name }}{% endblock %}
 {% block content %}
 {% with p=appt.patient %}
 <div class="page-head">
@@ -15,26 +16,89 @@
   </div>
 </div>
 
-{% if p.allergies %}<div class="allergy" style="margin-bottom:1rem">Allergies: {{ p.allergies }}</div>{% endif %}
+{% if p.medical_alerts or p.allergies %}
+<div class="allergy" style="margin-bottom:1rem">
+  {% if p.allergies %}<div>Allergies: {{ p.allergies }}</div>{% endif %}
+  {% if p.medical_alerts %}<div>Medical alert: {{ p.medical_alerts|join:" · " }}</div>{% endif %}
+</div>
+{% endif %}
 
-<div class="grid" style="grid-template-columns: minmax(0,2fr) minmax(0,1fr)">
-  <form method="post" class="card">{% csrf_token %}
+<div class="grid visit-grid">
+  <form method="post" class="card" id="visit-form">{% csrf_token %}
+    {# Pressing Enter in a field should just save, never trigger a procedure button below. #}
+    <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">Save</button>
+    {% if form.non_field_errors %}<ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+
     <fieldset>
       <legend>Vitals</legend>
-      <div class="grid grid-3">
+      <div class="grid grid-5">
         {% include "clinic/_field.html" with field=form.bp_systolic %}
         {% include "clinic/_field.html" with field=form.bp_diastolic %}
         {% include "clinic/_field.html" with field=form.pulse %}
-        {% include "clinic/_field.html" with field=form.temperature %}
+        {% include "clinic/_field.html" with field=form.blood_sugar %}
         {% include "clinic/_field.html" with field=form.weight_kg %}
-        {% include "clinic/_field.html" with field=form.spo2 %}
       </div>
     </fieldset>
+
     <fieldset>
-      <legend>Consultation</legend>
+      <legend>Examination</legend>
+      <div class="form-grid">
+        {% include "clinic/_field.html" with field=form.complaints cls="full" %}
+        {% include "clinic/_field.html" with field=form.extraoral_findings %}
+        {% include "clinic/_field.html" with field=form.intraoral_findings %}
+        {% include "clinic/_field.html" with field=form.oral_hygiene %}
+        {% include "clinic/_field.html" with field=form.investigations %}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Dental chart</legend>
+      {{ form.dental_chart }}
+      {% for e in form.dental_chart.errors %}<div class="error">{{ e }}</div>{% endfor %}
+      {% include "clinic/_odontogram.html" with editable=True %}
+    </fieldset>
+
+    <fieldset>
+      {% include "clinic/_field.html" with field=form.diagnosis %}
+    </fieldset>
+
+    <fieldset id="treatment">
+      <legend>Treatment plan</legend>
+      <table class="compact">
+        <thead><tr><th>Tooth</th><th>Procedure</th><th class="num">Fee</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for t in treatments %}
+          <tr>
+            <td>{{ t.teeth|default:"–" }}</td>
+            <td>{{ t.procedure.name }}{% if t.notes %}<div class="muted small">{{ t.notes }}</div>{% endif %}</td>
+            <td class="num">{{ t.price|inr }}</td>
+            <td><span class="badge t-{{ t.status }}">{{ t.get_status_display }}</span>
+              {% if t.status == "completed" %}<div class="muted small">{{ t.completed_on|date:"d M Y" }}{% if t.is_billed %} · billed{% endif %}</div>{% endif %}</td>
+            <td class="num">
+              {% if t.status == "planned" %}
+                {% if user.is_doctor or user.is_clinic_admin %}<button class="btn sm primary" type="submit" name="treat_done" value="{{ t.pk }}">Done today</button>{% endif %}
+                <button class="btn sm danger" type="submit" name="treat_cancel" value="{{ t.pk }}" onclick="return confirm('Remove this procedure from the plan?')">Remove</button>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}<tr><td colspan="5" class="empty">No procedures planned yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      {% for e in treatment_form.non_field_errors %}<div class="error">{{ e }}</div>{% endfor %}
+      <div class="add-treatment">
+        <div class="field grow">{{ treatment_form.procedure }}{% for e in treatment_form.procedure.errors %}<div class="error">{{ e }}</div>{% endfor %}</div>
+        <div class="field" style="width:7rem">{{ treatment_form.teeth }}{% for e in treatment_form.teeth.errors %}<div class="error">{{ e }}</div>{% endfor %}</div>
+        <div class="field" style="width:7.5rem">{{ treatment_form.price }}{% for e in treatment_form.price.errors %}<div class="error">{{ e }}</div>{% endfor %}</div>
+        <div class="field grow">{{ treatment_form.notes }}</div>
+        {% if user.is_doctor or user.is_clinic_admin %}<label class="small" style="display:flex;gap:.35rem;align-items:center">{{ treatment_form.done_today }} Done today</label>{% endif %}
+        <button class="btn" type="submit" name="add_treatment" value="1">+ Add procedure</button>
+      </div>
+      <div class="muted small">Teeth: FDI numbers (e.g. 36, or 11, 21). Leave empty for whole-mouth work like scaling. Saving also saves your notes above.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Prescription &amp; advice</legend>
       <div class="grid">
-        {% include "clinic/_field.html" with field=form.complaints %}
-        {% include "clinic/_field.html" with field=form.diagnosis %}
         {% include "clinic/_field.html" with field=form.prescription %}
         {% include "clinic/_field.html" with field=form.advice %}
         <div style="max-width:240px">{% include "clinic/_field.html" with field=form.follow_up_date %}</div>
@@ -43,27 +107,118 @@
     <div class="form-actions">
       <button class="btn" type="submit">Save notes</button>
       {% if user.is_doctor and appt.status == "in_consultation" %}
-        <button class="btn primary" type="submit" name="finish" value="1">Save &amp; finish consultation</button>
+        <button class="btn primary" type="submit" name="finish" value="1">Save &amp; finish visit</button>
       {% endif %}
     </div>
   </form>
 
   <div>
     <div class="card">
-      <h2>Background</h2>
-      <p style="white-space:pre-line;margin:0">{{ p.medical_history|default:"No history recorded." }}</p>
+      <h2>Medical background</h2>
+      <dl class="facts">
+        <dt>Conditions</dt><dd>{{ p.medical_alerts|join:", "|default:"None ticked" }}</dd>
+        {% if p.current_medications %}<dt>Medicines</dt><dd>{{ p.current_medications }}</dd>{% endif %}
+        {% if p.tobacco_use %}<dt>Tobacco</dt><dd>{{ p.get_tobacco_use_display }}</dd>{% endif %}
+        {% if p.medical_history %}<dt>Other</dt><dd>{{ p.medical_history }}</dd>{% endif %}
+        {% if p.dental_history %}<dt>Past dental</dt><dd>{{ p.dental_history }}</dd>{% endif %}
+      </dl>
     </div>
     <div class="card">
       <h2>Previous visits</h2>
       {% for c in past %}
         <div style="padding:.5rem 0;border-bottom:1px solid var(--line)">
           <strong>{{ c.appointment.date|date:"d M Y" }}</strong> <span class="muted small">{{ c.appointment.doctor }}</span>
+          {% if c.complaints %}<div class="small">{{ c.complaints|truncatechars:120 }}</div>{% endif %}
           {% if c.diagnosis %}<div>{{ c.diagnosis }}</div>{% endif %}
-          {% if c.prescription %}<div class="muted small" style="white-space:pre-line">{{ c.prescription|truncatechars:200 }}</div>{% endif %}
+          {% for t in c.appointment.treatments_done.all %}<div class="small">✓ {{ t.description }}</div>{% endfor %}
         </div>
       {% empty %}<p class="empty">First visit.</p>{% endfor %}
     </div>
   </div>
 </div>
 {% endwith %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // ---- dental chart
+  const input = document.getElementById("id_dental_chart");
+  let chart = {};
+  try { chart = JSON.parse(input.value || "{}") || {}; } catch (e) { chart = {}; }
+  const panel = document.getElementById("tooth-panel");
+  const tpNo = document.getElementById("tp-no");
+  const checks = Array.from(panel.querySelectorAll("input[type=checkbox]"));
+  const teeth = Array.from(document.querySelectorAll(".odonto button.tooth"));
+  const info = {};
+  checks.forEach(c => { info[c.value] = { abbr: c.dataset.abbr, kind: c.dataset.kind, label: c.dataset.label }; });
+  const order = checks.map(c => c.value);
+  const rank = { problem: 0, treated: 1, missing: 2 };
+  let current = null;
+
+  function paint(btn) {
+    const conds = chart[btn.dataset.tooth] || [];
+    btn.querySelector(".marks").textContent = conds.map(c => info[c].abbr).join(" ");
+    btn.classList.remove("problem", "treated", "missing");
+    const kind = conds.map(c => info[c].kind).sort((a, b) => rank[a] - rank[b])[0];
+    if (kind) btn.classList.add(kind);
+  }
+  function summary() {
+    const ul = document.getElementById("chart-summary");
+    ul.innerHTML = "";
+    Object.keys(chart).sort((a, b) => a - b).forEach(t => {
+      const li = document.createElement("li");
+      const b = document.createElement("strong");
+      b.textContent = t + " ";
+      li.appendChild(b);
+      li.appendChild(document.createTextNode(chart[t].map(c => info[c].label).join(", ")));
+      ul.appendChild(li);
+    });
+  }
+  function store() { input.value = JSON.stringify(chart); summary(); }
+
+  teeth.forEach(btn => btn.addEventListener("click", () => {
+    current = btn.dataset.tooth;
+    teeth.forEach(b => b.classList.toggle("selected", b === btn));
+    tpNo.textContent = current;
+    checks.forEach(c => { c.checked = (chart[current] || []).includes(c.value); });
+    panel.hidden = false;
+  }));
+  checks.forEach(c => c.addEventListener("change", () => {
+    const conds = order.filter(v => checks.find(x => x.value === v).checked);
+    if (conds.length) chart[current] = conds; else delete chart[current];
+    paint(teeth.find(b => b.dataset.tooth === current));
+    store();
+  }));
+  document.getElementById("tp-clear").addEventListener("click", () => {
+    checks.forEach(c => { c.checked = false; });
+    delete chart[current];
+    paint(teeth.find(b => b.dataset.tooth === current));
+    store();
+  });
+  document.getElementById("tp-close").addEventListener("click", () => {
+    panel.hidden = true;
+    teeth.forEach(b => b.classList.remove("selected"));
+  });
+  document.getElementById("tp-plan").addEventListener("click", () => {
+    const field = document.getElementById("id_t-teeth");
+    const list = field.value.split(/[\s,]+/).filter(Boolean);
+    if (!list.includes(current)) list.push(current);
+    field.value = list.join(", ");
+    document.getElementById("id_t-procedure").focus();
+  });
+
+  // ---- fill the fee from the price list when a procedure is chosen
+  const proc = document.getElementById("id_t-procedure");
+  const price = document.getElementById("id_t-price");
+  proc.addEventListener("change", () => {
+    const opt = proc.selectedOptions[0];
+    if (opt && opt.dataset.price && (!price.value || price.dataset.auto === "1")) {
+      price.value = opt.dataset.price;
+      price.dataset.auto = "1";
+    }
+  });
+  price.addEventListener("input", () => { price.dataset.auto = "0"; });
+})();
+</script>
 {% endblock %}

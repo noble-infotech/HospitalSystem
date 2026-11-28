@@ -1,0 +1,88 @@
+{% extends "clinic/base.html" %}
+{% load clinic_extras %}
+{% block title %}Bill {{ invoice.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Bill {{ invoice.number }} <span class="badge {{ invoice.status }}">{{ invoice.status_label }}</span></h1>
+    <div class="muted"><a href="{% url 'patient_detail' invoice.patient.pk %}">{{ invoice.patient.full_name }}</a> · {{ invoice.patient.patient_code }} · {{ invoice.date|date:"d M Y" }}
+      {% if invoice.appointment %} · {{ invoice.appointment.doctor }}{% endif %}</div>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="{% url 'invoice_print' invoice.pk %}" target="_blank">Print receipt</a>
+  </div>
+</div>
+
+{% if invoice.is_cancelled %}
+  <div class="allergy" style="margin-bottom:1rem">Cancelled {{ invoice.cancelled_at|date:"d M Y, g:i A" }} by {{ invoice.cancelled_by }}: {{ invoice.cancel_reason }}</div>
+{% endif %}
+
+<div class="grid" style="grid-template-columns: minmax(0,3fr) minmax(0,2fr)">
+  <div class="card">
+    <table>
+      <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Fee</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+      {% for item in items %}
+        <tr><td>{{ item.description }}</td><td class="num">{{ item.quantity }}</td><td class="num">{{ item.unit_price|inr }}</td><td class="num">{{ item.amount|inr }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <dl class="totals">
+      <dt>Subtotal</dt><dd>{{ invoice.subtotal|inr }}</dd>
+      {% if invoice.discount %}<dt>Discount</dt><dd>−{{ invoice.discount|inr }}</dd>{% endif %}
+      <dt class="grand">Total</dt><dd class="grand">{{ invoice.total|inr }}</dd>
+      <dt>Paid</dt><dd>{{ invoice.paid|inr }}</dd>
+      {% if not invoice.is_cancelled %}<dt class="grand">Balance due</dt><dd class="grand">{{ invoice.balance|inr }}</dd>{% endif %}
+    </dl>
+    {% if invoice.notes %}<p class="muted small">Note: {{ invoice.notes }}</p>{% endif %}
+    <p class="muted small">Created by {{ invoice.created_by|default:"–" }} on {{ invoice.created_at|date:"d M Y, g:i A" }}</p>
+  </div>
+
+  <div>
+    {% if not invoice.is_cancelled and invoice.balance > 0 %}
+    <form method="post" class="card pay-box">{% csrf_token %}
+      <h2>Receive payment</h2>
+      <div class="form-grid">
+        {% include "clinic/_field.html" with field=pay_form.amount %}
+        {% include "clinic/_field.html" with field=pay_form.mode %}
+        {% include "clinic/_field.html" with field=pay_form.reference cls="full" %}
+      </div>
+      <div class="form-actions"><button class="btn primary" type="submit">Save payment</button></div>
+    </form>
+    {% endif %}
+
+    <div class="card">
+      <h2>Payments</h2>
+      {% for p in payments %}
+        <div class="pay-row{% if p.is_void %} void{% endif %}">
+          <div class="actions" style="justify-content:space-between">
+            <strong>{{ p.amount|inr }}</strong>
+            <span class="muted small">{{ p.get_mode_display }}{% if p.reference %} · {{ p.reference }}{% endif %}</span>
+          </div>
+          <div class="muted small">{{ p.received_at|date:"d M Y, g:i A" }} · {{ p.received_by|default:"–" }}</div>
+          {% if p.is_void %}
+            <div class="small" style="color:var(--danger)">Voided by {{ p.voided_by }}: {{ p.void_reason }}</div>
+          {% elif user.is_clinic_admin %}
+            <details class="small"><summary>Void this payment</summary>
+              <form method="post" action="{% url 'payment_void' p.pk %}" class="actions" style="margin-top:.4rem">{% csrf_token %}
+                {{ reason_form.reason }}<button class="btn sm danger" type="submit">Void</button>
+              </form>
+            </details>
+          {% endif %}
+        </div>
+      {% empty %}<p class="empty">No payments yet.</p>{% endfor %}
+    </div>
+
+    {% if user.is_clinic_admin and not invoice.is_cancelled %}
+    <div class="card">
+      <details><summary class="small">Cancel this bill</summary>
+        <p class="muted small">Bills are never deleted. Cancelling keeps it on record and frees its procedures to be billed again. Void any payments first.</p>
+        <form method="post" action="{% url 'invoice_cancel' invoice.pk %}" class="actions">{% csrf_token %}
+          {{ reason_form.reason }}<button class="btn sm danger" type="submit" onclick="return confirm('Cancel bill {{ invoice.number }}?')">Cancel bill</button>
+        </form>
+      </details>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

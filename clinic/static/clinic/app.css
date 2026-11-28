@@ -136,8 +136,72 @@ legend { font-weight: 700; margin-bottom: .6rem; }
 /* Pagination */
 .pager { display: flex; gap: .5rem; align-items: center; margin-top: 1rem; }
 
+/* Helpers */
+.grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.visit-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+table.compact th, table.compact td { padding: .4rem .45rem; }
+.check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem 1.25rem; }
+.check-grid .field label { font-weight: 500; }
+.add-treatment { display: flex; gap: .5rem; align-items: flex-start; flex-wrap: wrap; margin: .75rem 0 .35rem; }
+.add-treatment .field.grow { flex: 1 1 12rem; }
+.new-row td { background: #fafcfb; }
+
+/* Dental chart */
+.odonto { overflow-x: auto; }
+.odonto .jaw-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: .25rem 0; }
+.odonto .jaw-row { display: flex; justify-content: center; gap: .9rem; min-width: max-content; }
+.odonto .quad { display: flex; gap: 3px; }
+.odonto .quad + .quad { border-left: 2px solid var(--line); padding-left: .9rem; }
+.odonto .occlusal { border-top: 2px dashed var(--line); margin: .35rem 0; }
+.tooth {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-start; width: 2.3rem; min-height: 2.9rem;
+  border: 1px solid #c9d3cf; border-radius: 8px 8px 12px 12px; background: #fff; font: inherit; font-size: .78rem; padding: .2rem 0; color: var(--ink);
+}
+button.tooth { cursor: pointer; }
+button.tooth:hover { border-color: var(--brand); }
+.tooth .no { font-weight: 700; }
+.tooth .marks { font-size: .65rem; font-weight: 700; line-height: 1.1; text-align: center; }
+.tooth.problem { background: var(--danger-soft); border-color: #f0a9a1; color: var(--danger); }
+.tooth.treated { background: var(--info-soft); border-color: #a9bff3; color: var(--info); }
+.tooth.missing { background: #eef1f0; border-style: dashed; color: var(--muted); }
+.tooth.selected { outline: 3px solid var(--brand); outline-offset: 1px; }
+.odonto details.milk { margin-top: .6rem; }
+.odonto details.milk summary { cursor: pointer; color: var(--brand); font-size: .85rem; margin-bottom: .4rem; }
+.legend { display: flex; gap: 1rem; margin-top: .6rem; color: var(--muted); }
+.legend .sw { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; vertical-align: -1px; border: 1px solid #c9d3cf; }
+.legend .sw.problem { background: var(--danger-soft); border-color: #f0a9a1; }
+.legend .sw.treated { background: var(--info-soft); border-color: #a9bff3; }
+.legend .sw.missing { background: #eef1f0; border-style: dashed; }
+.tooth-panel { margin-top: .75rem; padding: .75rem; border: 1px solid var(--line); border-radius: 8px; background: #fafcfb; }
+.tp-conds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem 1rem; margin-top: .6rem; }
+.tp-conds label { display: flex; gap: .4rem; align-items: center; font-size: .88rem; cursor: pointer; }
+.chart-summary { list-style: none; padding: 0; margin: .6rem 0 0; display: flex; flex-wrap: wrap; gap: .35rem .9rem; font-size: .88rem; }
+
+/* Billing */
+.badge.paid { background: var(--ok-soft); color: var(--ok); }
+.badge.partial { background: var(--warn-soft); color: var(--warn); }
+.badge.unpaid { background: var(--danger-soft); color: var(--danger); }
+.badge.t-planned { background: var(--info-soft); color: var(--info); }
+.badge.t-completed { background: var(--ok-soft); color: var(--ok); }
+dl.totals { display: grid; grid-template-columns: 1fr max-content; gap: .3rem 1.5rem; margin: 1rem 0 0 auto; max-width: 380px; }
+dl.totals dt { color: var(--muted); text-align: right; }
+dl.totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+dl.totals .grand { color: var(--ink); font-weight: 700; font-size: 1.05rem; border-top: 1px solid var(--line); padding-top: .3rem; }
+.pay-box { background: var(--brand-soft); border-color: #c4e3dc; border-radius: var(--radius); padding: 1rem; }
+.pay-row { padding: .55rem 0; border-bottom: 1px solid var(--line); }
+.pay-row:last-child { border-bottom: 0; }
+.pay-row.void strong { text-decoration: line-through; color: var(--muted); }
+.picker-results a.picker-link { display: block; padding: .55rem .75rem; color: var(--ink); }
+.picker-results a.picker-link:hover { background: var(--brand-soft); text-decoration: none; }
+td.num, th.num, .stat .num { font-variant-numeric: tabular-nums; }
+
 @media (max-width: 900px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .card { overflow-x: auto; }
+  .grid > * { min-width: 0; }
+  .visit-grid { grid-template-columns: minmax(0, 1fr); }
+  .grid-5, .check-grid, .tp-conds { grid-template-columns: 1fr 1fr; }
   .sidebar { position: static; height: auto; }
   .sidebar nav { display: flex; flex-wrap: wrap; gap: .25rem; }
   .sidebar .section, .sidebar .me { position: static; display: none; }

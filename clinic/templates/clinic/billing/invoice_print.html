@@ -1,0 +1,69 @@
+{% load static clinic_extras %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Receipt {{ invoice.number }} · {{ invoice.patient.full_name }}</title>
+  <link rel="stylesheet" href="{% static 'clinic/app.css' %}">
+  <style>
+    body { background: #fff; }
+    .rx { max-width: 760px; margin: 2rem auto; padding: 0 1.5rem; }
+    .rx header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--brand); padding-bottom: .75rem; margin-bottom: 1rem; }
+    .rx h1 { color: var(--brand); }
+    .rx .doc-title { text-align: center; font-weight: 700; letter-spacing: .08em; margin: .5rem 0 1rem; }
+    .rx table th { color: var(--ink); }
+    .rx .words { margin-top: 1rem; padding: .5rem .75rem; background: var(--bg); border-radius: 6px; }
+    .rx .sign { margin-top: 3rem; display: flex; justify-content: space-between; align-items: flex-end; }
+    .stamp { color: var(--danger); border: 2px solid var(--danger); display: inline-block; padding: .2rem .6rem; font-weight: 700; transform: rotate(-4deg); }
+    @media print { .rx { margin: 0 auto; } }
+  </style>
+</head>
+<body>
+<div class="rx">
+  <div class="no-print" style="text-align:right;margin-bottom:1rem"><button class="btn primary" onclick="window.print()">Print</button></div>
+  <header>
+    <div>
+      <h1>{{ CLINIC_NAME }}</h1>
+      {% if CLINIC_ADDRESS %}<div class="small">{{ CLINIC_ADDRESS }}</div>{% endif %}
+      {% if CLINIC_PHONE %}<div class="small">Ph: {{ CLINIC_PHONE }}</div>{% endif %}
+    </div>
+    <div style="text-align:right">
+      <div><strong>Bill no. {{ invoice.number }}</strong></div>
+      <div>{{ invoice.date|date:"d M Y" }}</div>
+    </div>
+  </header>
+
+  <div class="doc-title">{% if invoice.status == "paid" %}BILL CUM RECEIPT{% else %}BILL{% endif %}</div>
+  {% if invoice.is_cancelled %}<p><span class="stamp">CANCELLED</span> {{ invoice.cancel_reason }}</p>{% endif %}
+
+  <dl class="facts" style="margin-bottom:1rem">
+    <dt>Patient</dt><dd><strong>{{ invoice.patient.full_name }}</strong> ({{ invoice.patient.patient_code }})</dd>
+    <dt>Phone</dt><dd>{{ invoice.patient.phone }}</dd>
+    {% if invoice.appointment %}<dt>Dentist</dt><dd>{{ invoice.appointment.doctor }}</dd>{% endif %}
+  </dl>
+
+  <table>
+    <thead><tr><th style="width:2rem">#</th><th>Treatment / item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+    {% for item in items %}
+      <tr><td>{{ forloop.counter }}</td><td>{{ item.description }}</td><td class="num">{{ item.quantity }}</td><td class="num">{{ item.unit_price|inr }}</td><td class="num">{{ item.amount|inr }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <dl class="totals">
+    <dt>Subtotal</dt><dd>{{ invoice.subtotal|inr }}</dd>
+    {% if invoice.discount %}<dt>Discount</dt><dd>−{{ invoice.discount|inr }}</dd>{% endif %}
+    <dt class="grand">Total</dt><dd class="grand">{{ invoice.total|inr }}</dd>
+    {% for p in payments %}<dt>Paid {{ p.received_at|date:"d M" }} · {{ p.get_mode_display }}{% if p.reference %} ({{ p.reference }}){% endif %}</dt><dd>{{ p.amount|inr }}</dd>{% endfor %}
+    {% if not invoice.is_cancelled %}<dt class="grand">Balance due</dt><dd class="grand">{{ invoice.balance|inr }}</dd>{% endif %}
+  </dl>
+
+  {% if invoice.paid %}<div class="words">Received with thanks: <strong>{{ invoice.paid|amount_in_words }}</strong></div>{% endif %}
+  {% if invoice.notes %}<p class="small">Note: {{ invoice.notes }}</p>{% endif %}
+
+  <div class="sign">
+    <div class="muted small">This is a computer-generated bill.</div>
+    <div style="text-align:center"><div style="height:2.5rem"></div><div>Authorised signatory</div></div>
+  </div>
+</div>
+</body>
+</html>

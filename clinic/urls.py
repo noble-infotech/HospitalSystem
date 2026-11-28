@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_billing as billing
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -24,6 +24,15 @@ urlpatterns = [
     path("staff/<int:pk>/", views.staff_form, name="staff_edit"),
     path("doctors/<int:pk>/leave/", views.doctor_leave_add, name="doctor_leave_add"),
     path("leave/<int:pk>/delete/", views.doctor_leave_delete, name="doctor_leave_delete"),
+
+    path("billing/", billing.invoice_list, name="invoice_list"),
+    path("billing/new/", billing.invoice_create, name="invoice_create"),
+    path("billing/<int:pk>/", billing.invoice_detail, name="invoice_detail"),
+    path("billing/<int:pk>/print/", billing.invoice_print, name="invoice_print"),
+    path("billing/<int:pk>/cancel/", billing.invoice_cancel, name="invoice_cancel"),
+    path("billing/payments/<int:pk>/void/", billing.payment_void, name="payment_void"),
+    path("billing/collections/", billing.collection_report, name="collection_report"),
+    path("billing/prices/", billing.price_list, name="price_list"),
 
     path("audit/", views.audit_log, name="audit_log"),
 ]

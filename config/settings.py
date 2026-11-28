@@ -120,6 +120,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 # WhiteNoise serves static files from gunicorn, so no Nginx is needed on PaaS hosts.
+# In development it reads the source files directly, so CSS edits show up without collectstatic.
+WHITENOISE_USE_FINDERS = DEBUG
+WHITENOISE_AUTOREFRESH = DEBUG
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {
@@ -131,7 +134,10 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CLINIC_NAME = os.environ.get("CLINIC_NAME", "City Care Clinic")
+CLINIC_NAME = os.environ.get("CLINIC_NAME", "Smile Care Dental Clinic")
+# Printed on the letterhead of receipts and prescriptions.
+CLINIC_ADDRESS = os.environ.get("CLINIC_ADDRESS", "")
+CLINIC_PHONE = os.environ.get("CLINIC_PHONE", "")
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

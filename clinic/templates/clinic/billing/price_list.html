@@ -1,0 +1,29 @@
+{% extends "clinic/base.html" %}
+{% block title %}Price list{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Price list</h1>
+    <div class="muted">Procedures and their usual fees. The dentist can change the fee for a patient when adding a procedure. Untick “In use” to hide one; past bills are never affected.</div>
+  </div>
+</div>
+<form method="post" class="card">{% csrf_token %}
+  {{ formset.management_form }}
+  {% if formset.non_form_errors %}<ul class="errorlist">{% for e in formset.non_form_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  <table class="compact">
+    <thead><tr><th>Procedure</th><th>Category</th><th style="width:9rem">Fee (₹)</th><th>In use</th></tr></thead>
+    <tbody>
+    {% for f in formset %}
+      <tr{% if not f.instance.pk %} class="new-row"{% endif %}>
+        <td>{{ f.id }}{{ f.name }}{% for e in f.name.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+        <td>{{ f.category }}</td>
+        <td>{{ f.default_price }}{% for e in f.default_price.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+        <td>{{ f.is_active }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">Use the empty rows at the bottom to add new procedures.</p>
+  <div class="form-actions"><button class="btn primary" type="submit">Save price list</button></div>
+</form>
+{% endblock %}
